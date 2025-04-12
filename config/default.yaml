@@ -1,0 +1,186 @@
+# BookMyShow Bot Default Configuration
+
+# Application settings
+app:
+  name: BookMyShow Ticket Bot
+  version: 0.1.0
+  log_level: INFO
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  log_file: logs/bookmyshow_bot.log
+
+# BookMyShow website settings
+bookmyshow:
+  base_url: "https://in.bookmyshow.com"
+  api_base_url: "https://api.bookmyshow.com"
+  regions:
+    - "NCR"
+    - "Mumbai"
+    - "Bengaluru"
+    - "Hyderabad"
+    - "Chennai"
+  # Time between consecutive requests in seconds
+  request_delay: 0.5
+  # Maximum number of retries for operations
+  max_retries: 3
+  # Backoff factor for retries (exponential backoff)
+  backoff_factor: 2
+
+# Monitoring settings
+monitoring:
+  # Polling interval in seconds for regular monitoring
+  interval: 60
+  # Accelerated polling interval when release time approaches
+  accelerated_interval: 5
+  # Threshold in minutes for switching to accelerated polling
+  acceleration_threshold: 30
+  # Maximum concurrent monitoring processes
+  max_concurrent_processes: 3
+
+# Browser settings
+browser:
+  type: "chromium"  # Options: chromium, firefox, webkit
+  headless: true
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  viewport:
+    width: 1920
+    height: 1080
+  # Wait timeout in milliseconds
+  timeout: 30000
+  # Extra browser arguments
+  args:
+    - "--disable-features=site-per-process"
+    - "--disable-blink-features=AutomationControlled"
+  # Simulating human-like behavior
+  human_emulation:
+    enabled: true
+    min_delay: 100  # Minimum delay between actions in ms
+    max_delay: 1500  # Maximum delay between actions in ms
+    mouse_movement: true
+
+# Proxy settings
+proxy:
+  enabled: false
+  type: "http"  # Options: http, socks5
+  rotation:
+    enabled: false
+    interval: 300  # Rotation interval in seconds
+  providers:
+    brightdata:
+      enabled: false
+      zone: "residential"
+    oxylabs:
+      enabled: false
+      country: "in"
+
+# Authentication settings
+auth:
+  # Whether to use stored sessions
+  use_saved_session: true
+  # Session storage path
+  session_path: "data/sessions"
+  # Session validity in seconds
+  session_validity: 86400  # 24 hours
+
+# Ticket selection preferences
+ticket:
+  # Maximum price willing to pay per ticket
+  max_price: 1500
+  # Minimum price per ticket
+  min_price: 0
+  # Preferred ticket quantity
+  quantity: 2
+  # Maximum ticket quantity to buy
+  max_quantity: 4
+  # Preferred seating areas, in order of preference
+  preferred_areas:
+    - "GOLD"
+    - "SILVER"
+    - "PREMIUM"
+  # Whether to accept adjacent seats only
+  adjacent_seats_only: true
+  # Whether to auto-select best available seats
+  auto_select_best: true
+
+# Payment settings
+payment:
+  method: "gift_card"  # Options: gift_card, credit_card, upi, net_banking
+  # Path to store gift card information
+  gift_cards_path: "data/payment/gift_cards.json"
+  # Whether to auto-apply available offers
+  apply_offers: true
+  # Maximum time to wait for payment processing in seconds
+  timeout: 120
+
+# CAPTCHA handling
+captcha:
+  service: "2captcha"  # Options: 2captcha, anti-captcha, manual
+  # Retry attempts for CAPTCHA solving
+  max_retries: 3
+  # Maximum wait time for CAPTCHA solving in seconds
+  timeout: 60
+
+# Notification settings
+notification:
+  # Available notification channels
+  channels:
+    email:
+      enabled: true
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      use_tls: true
+    telegram:
+      enabled: false
+      chat_id: ""
+    slack:
+      enabled: false
+      webhook_url: ""
+    sms:
+      enabled: false
+      provider: "twilio"
+  # Notification events
+  events:
+    ticket_available:
+      channels: ["email", "telegram", "slack", "sms"]
+      priority: "high"
+    purchase_started:
+      channels: ["email", "telegram"]
+      priority: "medium"
+    purchase_success:
+      channels: ["email", "telegram", "slack", "sms"]
+      priority: "high"
+    purchase_failed:
+      channels: ["email", "telegram", "slack", "sms"]
+      priority: "high"
+    error:
+      channels: ["email"]
+      priority: "medium"
+
+# Event tracking settings
+events:
+  # Path to store event information
+  events_path: "data/events/tracked_events.json"
+  # Default refresh interval for event details in minutes
+  refresh_interval: 60
+
+# Database settings
+database:
+  type: "sqlite"  # Options: sqlite, redis, mysql
+  sqlite:
+    path: "data/db/bookmyshow_bot.db"
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: ""
+  mysql:
+    host: "localhost"
+    port: 3306
+    user: "root"
+    password: ""
+    database: "bookmyshow_bot"
+
+# Task scheduling settings
+scheduler:
+  type: "apscheduler"  # Options: apscheduler, celery
+  timezone: "Asia/Kolkata"
+  job_store: "sqlite"
