@@ -10,13 +10,20 @@ import sys
 import asyncio
 import argparse
 import signal
+import json
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from .config import config
 from .utils.logger import logger, get_logger
 from .utils.browser_manager import browser_manager
 from .monitoring.event_tracker import event_tracker, Event
+from .auth.login import auth_manager
+from .ticket.selector import ticket_selector
+from .payment.gift_card import payment_processor
+from .notification.alerts import notification_manager
+
 
 # Set up logger
 log = get_logger(__name__)
@@ -35,6 +42,7 @@ class BookMyShowBot:
         self.initialized = False
         self.running = False
         self.shutdown_requested = False
+        self.purchase_in_progress = False
     
     async def initialize(self) -> None:
         """Initialize the bot and its components."""
@@ -201,11 +209,17 @@ class BookMyShowBot:
         if not self.initialized:
             await self.initialize()
         
-        def on_ticket_available(event: Event) -> None:
+        async def on_ticket_available(event: Event) -> None:
             """Callback when tickets become available."""
             log.info(f"🎉 TICKETS AVAILABLE for {event.name}! 🎉")
-            # Here we would normally trigger the ticket purchase process
-            # and send notifications
+            
+            # Send notification
+            await notification_manager.notify_ticket_available(event)
+            
+            # Start purchase process if not already in progress
+            if not self.purchase_in_progress and not event.sold_out:
+                log.info(f"Initiating purchase for {event.name}")
+                asyncio.create_task(self.purchase_tickets(event))
         
         self.running = True
         self.shutdown_requested = False
@@ -234,6 +248,144 @@ class BookMyShowBot:
             self.running = False
             return []
     
+    async def purchase_tickets(self, event: Event) -> bool:
+        """
+        Purchase tickets for an event.
+        
+        Args:
+            event: Event to purchase tickets for
+            
+        Returns:
+            True if purchase was successful, False otherwise
+        """
+        if self.purchase_in_progress:
+            log.warning("Another purchase is already in progress, skipping")
+            return False
+        
+        self.purchase_in_progress = True
+        
+        try:
+            log.info(f"Starting ticket purchase for {event.name}")
+            
+            # Get login credentials from config
+            credentials = {}
+            if config.get("auth.mobile"):
+                credentials["mobile"] = config.get("auth.mobile")
+            elif config.get("auth.email") and config.get("auth.password"):
+                credentials["email"] = config.get("auth.email")
+                credentials["password"] = config.get("auth.password")
+            else:
+                log.error("No login credentials configured")
+                return False
+            
+            # Notify that purchase process is starting
+            await notification_manager.notify_purchase_started(event, event.quantity)
+            
+            # Initialize browser
+            context = await browser_manager.create_context(load_session=True, session_id="bookmyshow")
+            page = await browser_manager.new_page(context)
+            
+            # Navigate to event page
+            await browser_manager.navigate(page, event.url)
+            
+            # Step 1: Login if needed
+            is_logged_in = await auth_manager.check_auth_status(page)
+            if not is_logged_in:
+                log.info("Not logged in, authenticating")
+                try:
+                    logged_in = await auth_manager.login(page, credentials, session_id="bookmyshow")
+                    if not logged_in:
+                        log.error("Failed to log in")
+                        await notification_manager.notify_purchase_failed(event, "Authentication failed")
+                        return False
+                except Exception as e:
+                    log.error(f"Login error: {e}")
+                    await notification_manager.notify_purchase_failed(event, f"Authentication error: {str(e)}")
+                    return False
+            
+            # Step 2: Navigate to ticket selection and select tickets
+            log.info("Selecting tickets")
+            try:
+                tickets_selected = await ticket_selector.select_tickets(page, event.url)
+                if not tickets_selected:
+                    log.error("Failed to select tickets")
+                    await notification_manager.notify_purchase_failed(event, "Ticket selection failed")
+                    return False
+            except Exception as e:
+                log.error(f"Ticket selection error: {e}")
+                await notification_manager.notify_purchase_failed(event, f"Ticket selection error: {str(e)}")
+                return False
+            
+            # Step 3: Process payment
+            log.info("Processing payment")
+            try:
+                payment_successful = await payment_processor.process_payment(page)
+                if not payment_successful:
+                    log.error("Payment failed")
+                    await notification_manager.notify_purchase_failed(event, "Payment processing failed")
+                    return False
+            except Exception as e:
+                log.error(f"Payment error: {e}")
+                await notification_manager.notify_purchase_failed(event, f"Payment error: {str(e)}")
+                return False
+            
+            # Step 4: Verify success and save tickets
+            log.info("Verifying purchase")
+            try:
+                # Look for confirmation indicators
+                confirmation = await page.query_selector("text=Booking Confirmed, text=Your transaction is successful")
+                if confirmation:
+                    # Try to get booking ID
+                    booking_id = "Unknown"
+                    booking_id_element = await page.query_selector(".booking-id, [data-id='booking-id']")
+                    if booking_id_element:
+                        booking_id = await booking_id_element.text_content()
+                        booking_id = booking_id.strip()
+                    
+                    # Get total amount if available
+                    total_amount = 0.0
+                    amount_element = await page.query_selector(".total-amount, .amount-paid")
+                    if amount_element:
+                        amount_text = await amount_element.text_content()
+                        import re
+                        amount_match = re.search(r'₹\s*([\d,]+(\.\d+)?)', amount_text)
+                        if amount_match:
+                            amount_str = amount_match.group(1).replace(',', '')
+                            total_amount = float(amount_str)
+                    
+                    # Take screenshot of confirmation
+                    screenshot_dir = Path("data/screenshots")
+                    screenshot_dir.mkdir(parents=True, exist_ok=True)
+                    screenshot_path = screenshot_dir / f"confirmation_{event.event_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    await page.screenshot(path=str(screenshot_path))
+                    log.info(f"Saved confirmation screenshot to {screenshot_path}")
+                    
+                    # Send success notification
+                    await notification_manager.notify_purchase_success(
+                        event, 
+                        event.quantity, 
+                        total_amount
+                    )
+                    
+                    log.info(f"Purchase successful! Booking ID: {booking_id}")
+                    return True
+                else:
+                    log.warning("Could not verify purchase success")
+                    await notification_manager.notify_purchase_failed(event, "Could not verify purchase success")
+                    return False
+            except Exception as e:
+                log.error(f"Verification error: {e}")
+                await notification_manager.notify_purchase_failed(event, f"Verification error: {str(e)}")
+                return False
+            
+        except Exception as e:
+            log.error(f"Error during ticket purchase: {e}")
+            await notification_manager.notify_purchase_failed(event, f"Unexpected error: {str(e)}")
+            return False
+        
+        finally:
+            self.purchase_in_progress = False
+    
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
         loop = asyncio.get_event_loop()
@@ -257,6 +409,18 @@ class BookMyShowBot:
         
         self.running = False
         log.info("BookMyShow Bot shutdown complete")
+
+    async def add_gift_card(self, card_number: str, pin: str, balance: float = 0.0) -> None:
+        """
+        Add a gift card for payment.
+        
+        Args:
+            card_number: Gift card number
+            pin: Gift card PIN
+            balance: Current balance (if known)
+        """
+        payment_processor.add_gift_card(card_number, pin, balance)
+        log.info(f"Added gift card ending in ...{card_number[-4:]}")
 
 
 async def main() -> None:
@@ -285,6 +449,23 @@ async def main() -> None:
     # Remove command
     remove_parser = subparsers.add_parser("remove", help="Remove an event from tracking")
     remove_parser.add_argument("event_id", help="Event ID to remove")
+    
+    # Gift card commands
+    gift_card_parser = subparsers.add_parser("gift-card", help="Manage gift cards")
+    gift_card_subparsers = gift_card_parser.add_subparsers(dest="gift_card_command", help="Gift card command")
+    
+    # Add gift card
+    add_card_parser = gift_card_subparsers.add_parser("add", help="Add a gift card")
+    add_card_parser.add_argument("number", help="Gift card number")
+    add_card_parser.add_argument("pin", help="Gift card PIN")
+    add_card_parser.add_argument("--balance", type=float, default=0.0, help="Current balance")
+    
+    # List gift cards
+    list_cards_parser = gift_card_subparsers.add_parser("list", help="List available gift cards")
+    
+    # Purchase command
+    purchase_parser = subparsers.add_parser("purchase", help="Purchase tickets for an event")
+    purchase_parser.add_argument("event_id", help="Event ID to purchase")
     
     # Parse arguments
     args = parser.parse_args()
@@ -343,6 +524,37 @@ async def main() -> None:
                 print(f"Removed event {args.event_id}")
             else:
                 print(f"Event {args.event_id} not found")
+        
+        elif args.command == "gift-card":
+            if args.gift_card_command == "add":
+                await bot.add_gift_card(args.number, args.pin, args.balance)
+                print(f"Added gift card ending in ...{args.number[-4:]}")
+            
+            elif args.gift_card_command == "list":
+                cards = payment_processor.gift_cards
+                if not cards:
+                    print("No gift cards available")
+                else:
+                    print(f"Available gift cards ({len(cards)}):")
+                    for i, card in enumerate(cards, 1):
+                        masked_number = f"{'*' * (len(card.card_number) - 4)}{card.card_number[-4:]}"
+                        print(f"{i}. {masked_number} - Balance: ₹{card.balance:.2f}")
+                        if card.last_used:
+                            print(f"   Last used: {card.last_used}")
+            else:
+                gift_card_parser.print_help()
+        
+        elif args.command == "purchase":
+            event = event_tracker.get_event(args.event_id)
+            if not event:
+                print(f"Event {args.event_id} not found")
+            else:
+                print(f"Attempting to purchase tickets for: {event.name}")
+                success = await bot.purchase_tickets(event)
+                if success:
+                    print("Purchase successful! 🎉")
+                else:
+                    print("Purchase failed. Check logs for details.")
                 
         else:
             # If no command is provided, show help
