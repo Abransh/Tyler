@@ -5,7 +5,7 @@
 echo "Setting up BookMyShow Ticket Bot..."
 
 # Check if Python 3.11+ is installed
-python_version=$(python3 --version 2>&1 | grep -oP '(?<=Python )\d+\.\d+')
+python_version=$(python --version 2>&1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
 python_major=$(echo $python_version | cut -d. -f1)
 python_minor=$(echo $python_version | cut -d. -f2)
 

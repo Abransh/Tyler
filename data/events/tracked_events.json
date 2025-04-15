@@ -1,0 +1,23 @@
+{
+  "ET00437140": {
+    "event_id": "ET00437140",
+    "name": "Unnamed Event",
+    "url": "python -m src.main add https://in.bookmyshow.com/events/guns-n-roses-india-2025/ET00437140",
+    "venue": "",
+    "city": "",
+    "event_date": null,
+    "ticket_price_range": null,
+    "preferred_seats": [],
+    "expected_on_sale_date": null,
+    "quantity": 2,
+    "max_price": null,
+    "tracking_enabled": true,
+    "tickets_available": false,
+    "last_checked": null,
+    "last_available": null,
+    "check_count": 0,
+    "sold_out": false,
+    "error_count": 0,
+    "last_error": null
+  }
+}
