@@ -463,7 +463,7 @@ class BookMyShowBot:
                 sig,
                 lambda: asyncio.create_task(self.shutdown())
             )
-    
+            
     async def shutdown(self) -> None:
         """Gracefully shut down the bot."""
         if self.shutdown_requested:
@@ -474,6 +474,10 @@ class BookMyShowBot:
         
         # Close browser
         await browser_manager.close()
+        
+        # Shutdown scheduler if running
+        if hasattr(scheduler_manager, 'scheduler') and scheduler_manager.running:
+            scheduler_manager.shutdown()
         
         self.running = False
         log.info("BookMyShow Bot shutdown complete")
