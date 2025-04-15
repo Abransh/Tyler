@@ -69,3 +69,44 @@
 2025-04-15 02:45:38,083 - bookmyshow_bot.src.utils.browser_manager - INFO - Closing browser resources
 2025-04-15 02:45:38,121 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser resources closed
 2025-04-15 02:45:38,121 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot shutdown complete
+2025-04-15 03:33:34,795 - bookmyshow_bot - INFO - Logging initialized at level INFO
+2025-04-15 03:33:37,563 - bookmyshow_bot.src.monitoring.event_tracker - ERROR - Failed to load tracked events: 'NoneType' object is not iterable
+2025-04-15 03:33:37,575 - bookmyshow_bot.src.payment.gift_card - INFO - No gift cards file found
+2025-04-15 03:33:37,652 - bookmyshow_bot.__main__ - INFO - Initializing BookMyShow Bot
+2025-04-15 03:33:37,652 - bookmyshow_bot.src.utils.browser_manager - INFO - Initializing browser manager with chromium browser
+2025-04-15 03:33:38,606 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser manager initialized with chromium
+2025-04-15 03:33:38,606 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot initialized
+2025-04-15 03:33:38,770 - bookmyshow_bot.src.utils.browser_manager - INFO - Navigating to https://in.bookmyshow.com/events/event-name/ET00123456
+2025-04-15 03:33:38,771 - bookmyshow_bot.__main__ - ERROR - Error extracting event name: type object 'Playwright' has no attribute 'create_future'
+2025-04-15 03:33:38,771 - bookmyshow_bot.src.monitoring.event_tracker - INFO - Added event to tracking: Unnamed Event (ET00123456)
+2025-04-15 03:33:38,771 - bookmyshow_bot.__main__ - INFO - Shutting down BookMyShow Bot
+2025-04-15 03:33:38,771 - bookmyshow_bot.src.utils.browser_manager - INFO - Closing browser resources
+2025-04-15 03:33:38,809 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser resources closed
+2025-04-15 03:33:38,809 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot shutdown complete
+2025-04-15 03:33:53,504 - bookmyshow_bot - INFO - Logging initialized at level INFO
+2025-04-15 03:33:53,662 - bookmyshow_bot.src.monitoring.event_tracker - ERROR - Failed to load tracked events: 'NoneType' object is not iterable
+2025-04-15 03:33:53,663 - bookmyshow_bot.src.payment.gift_card - INFO - No gift cards file found
+2025-04-15 03:33:53,692 - bookmyshow_bot.__main__ - INFO - Initializing BookMyShow Bot
+2025-04-15 03:33:53,692 - bookmyshow_bot.src.utils.browser_manager - INFO - Initializing browser manager with chromium browser
+2025-04-15 03:33:54,599 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser manager initialized with chromium
+2025-04-15 03:33:54,599 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot initialized
+2025-04-15 03:33:54,788 - bookmyshow_bot.src.utils.browser_manager - INFO - Navigating to https://in.bookmyshow.com/events/guns-n-roses-india-2025/ET00437140
+2025-04-15 03:33:54,789 - bookmyshow_bot.__main__ - ERROR - Error extracting event name: type object 'Playwright' has no attribute 'create_future'
+2025-04-15 03:33:54,789 - bookmyshow_bot.src.monitoring.event_tracker - INFO - Added event to tracking: Unnamed Event (ET00437140)
+2025-04-15 03:33:54,789 - bookmyshow_bot.__main__ - INFO - Shutting down BookMyShow Bot
+2025-04-15 03:33:54,789 - bookmyshow_bot.src.utils.browser_manager - INFO - Closing browser resources
+2025-04-15 03:33:54,837 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser resources closed
+2025-04-15 03:33:54,837 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot shutdown complete
+2025-04-15 03:34:04,121 - bookmyshow_bot - INFO - Logging initialized at level INFO
+2025-04-15 03:34:04,309 - bookmyshow_bot.src.monitoring.event_tracker - ERROR - Failed to load tracked events: 'NoneType' object is not iterable
+2025-04-15 03:34:04,311 - bookmyshow_bot.src.payment.gift_card - INFO - No gift cards file found
+2025-04-15 03:34:04,343 - bookmyshow_bot.__main__ - INFO - Initializing BookMyShow Bot
+2025-04-15 03:34:04,343 - bookmyshow_bot.src.utils.browser_manager - INFO - Initializing browser manager with chromium browser
+2025-04-15 03:34:05,252 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser manager initialized with chromium
+2025-04-15 03:34:05,254 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot initialized
+2025-04-15 03:34:05,255 - bookmyshow_bot.__main__ - INFO - Starting event monitoring
+2025-04-15 03:34:05,255 - bookmyshow_bot.src.monitoring.event_tracker - WARNING - No events to monitor
+2025-04-15 03:34:05,255 - bookmyshow_bot.__main__ - INFO - Shutting down BookMyShow Bot
+2025-04-15 03:34:05,255 - bookmyshow_bot.src.utils.browser_manager - INFO - Closing browser resources
+2025-04-15 03:34:05,297 - bookmyshow_bot.src.utils.browser_manager - INFO - Browser resources closed
+2025-04-15 03:34:05,297 - bookmyshow_bot.__main__ - INFO - BookMyShow Bot shutdown complete

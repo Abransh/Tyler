@@ -2,7 +2,7 @@
   "ET00437140": {
     "event_id": "ET00437140",
     "name": "Unnamed Event",
-    "url": "python -m src.main add https://in.bookmyshow.com/events/guns-n-roses-india-2025/ET00437140",
+    "url": "https://in.bookmyshow.com/events/guns-n-roses-india-2025/ET00437140",
     "venue": "",
     "city": "",
     "event_date": null,

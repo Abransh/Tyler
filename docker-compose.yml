@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bookmyshow-bot
+    container_name: bookmyshow-bot
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - BOOKMYSHOW_BOT_ENV=production
+      - BOOKMYSHOW_BOT__BROWSER__HEADLESS=true
+      # Add other environment variables here
+    command: ["monitor", "--use-scheduler"]
+    # Uncomment the following lines to run specific events
+    # command: ["monitor", "--event", "ET00123456", "--event", "ET00789012", "--use-scheduler"]
+
+  # Optional: Add a database service
+  # db:
+  #   image: redis:alpine
+  #   container_name: bookmyshow-bot-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./data/redis:/data
+  #   ports:
+  #     - "127.0.0.1:6379:6379"
