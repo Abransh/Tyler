@@ -11,18 +11,22 @@ import asyncio
 import argparse
 import signal
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
 from .config import config
 from .utils.logger import logger, get_logger
 from .utils.browser_manager import browser_manager
+from .utils.captcha_solver import captcha_solver
+from .utils.proxy_manager import proxy_manager
 from .monitoring.event_tracker import event_tracker, Event
 from .auth.login import auth_manager
 from .ticket.selector import ticket_selector
 from .payment.gift_card import payment_processor
 from .notification.alerts import notification_manager
+from .tasks.purchase_flow import purchase_flow
+from .tasks.scheduler import scheduler_manager
 
 
 # Set up logger
