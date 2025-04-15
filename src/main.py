@@ -61,6 +61,16 @@ class BookMyShowBot:
         # Initialize browser manager
         await browser_manager.initialize()
         
+        # Initialize proxy manager if enabled
+        if config.get("proxy.enabled", False):
+            log.info("Proxy support enabled")
+            # Proxy manager is initialized when imported
+        
+        # Initialize scheduler if enabled
+        if config.get("scheduler.enabled", False):
+            log.info("Scheduler support enabled")
+            scheduler_manager.initialize()
+        
         # Event tracker is initialized when imported
         
         self.initialized = True
@@ -199,13 +209,17 @@ class BookMyShowBot:
     
     async def start_monitoring(self, 
                              event_ids: Optional[List[str]] = None,
-                             single_run: bool = False) -> List[str]:
+                             single_run: bool = False,
+                             interval: int = 60,
+                             use_scheduler: bool = False) -> List[str]:
         """
         Start monitoring events for ticket availability.
         
         Args:
             event_ids: List of event IDs to monitor, or None for all
             single_run: Whether to run only once instead of continuously
+            interval: Monitoring interval in seconds (for scheduled monitoring)
+            use_scheduler: Whether to use the scheduler for monitoring
             
         Returns:
             List of event IDs that became available (only for single_run=True)
@@ -220,11 +234,55 @@ class BookMyShowBot:
             # Send notification
             await notification_manager.notify_ticket_available(event)
             
-            # Start purchase process if not already in progress
-            if not self.purchase_in_progress and not event.sold_out:
-                log.info(f"Initiating purchase for {event.name}")
+            # Start purchase process if enabled and not already in progress
+            auto_purchase = config.get("purchase.auto_purchase", True)
+            if auto_purchase and not self.purchase_in_progress and not event.sold_out:
+                log.info(f"Auto-purchase enabled, initiating purchase for {event.name}")
                 asyncio.create_task(self.purchase_tickets(event))
+            elif not auto_purchase:
+                log.info(f"Auto-purchase disabled, not purchasing tickets for {event.name}")
         
+        # If using scheduler
+        if use_scheduler and not single_run:
+            log.info(f"Setting up scheduled monitoring (interval: {interval}s)")
+            if event_ids:
+                log.info(f"Monitoring events: {', '.join(event_ids)}")
+            else:
+                log.info("Monitoring all events")
+                
+            # Initialize and start scheduler
+            scheduler_manager.initialize()
+            job_id = scheduler_manager.schedule_regular_monitoring(
+                interval=interval,
+                event_ids=event_ids,
+                job_id="monitor_command"
+            )
+            
+            # Keep the scheduler running until interrupted
+            self.running = True
+            self.shutdown_requested = False
+            
+            # Set up signal handlers for graceful shutdown
+            self._setup_signal_handlers()
+            
+            try:
+                log.info(f"Scheduled monitoring active with job ID: {job_id}")
+                log.info("Press Ctrl+C to stop monitoring")
+                
+                # Wait until shutdown is requested
+                while not self.shutdown_requested:
+                    await asyncio.sleep(1)
+                
+                self.running = False
+                return []
+                
+            except asyncio.CancelledError:
+                log.info("Monitoring cancelled")
+                scheduler_manager.remove_job(job_id)
+                self.running = False
+                return []
+        
+        # If not using scheduler, run directly
         self.running = True
         self.shutdown_requested = False
         
@@ -251,13 +309,15 @@ class BookMyShowBot:
             log.error(f"Error during event monitoring: {e}")
             self.running = False
             return []
-    
-    async def purchase_tickets(self, event: Event) -> bool:
+        
+
+    async def purchase_tickets(self, event: Event, quantity: Optional[int] = None) -> bool:
         """
         Purchase tickets for an event.
         
         Args:
             event: Event to purchase tickets for
+            quantity: Number of tickets to purchase, or None to use event default
             
         Returns:
             True if purchase was successful, False otherwise
@@ -271,16 +331,27 @@ class BookMyShowBot:
         try:
             log.info(f"Starting ticket purchase for {event.name}")
             
-            # Get login credentials from config
-            credentials = {}
-            if config.get("auth.mobile"):
-                credentials["mobile"] = config.get("auth.mobile")
-            elif config.get("auth.email") and config.get("auth.password"):
-                credentials["email"] = config.get("auth.email")
-                credentials["password"] = config.get("auth.password")
+            # Use event quantity if not specified
+            if quantity is None:
+                quantity = event.quantity
+            
+            # Execute the purchase flow
+            success = await purchase_flow.execute_purchase(event, quantity)
+            
+            if success:
+                log.info(f"Purchase successful for {event.name}!")
             else:
-                log.error("No login credentials configured")
-                return False
+                log.error(f"Purchase failed for {event.name}")
+            
+            return success
+            
+        except Exception as e:
+            log.error(f"Error during ticket purchase: {e}")
+            await notification_manager.notify_purchase_failed(event, f"Unexpected error: {str(e)}")
+            return False
+        
+        finally:
+            self.purchase_in_progress = False
             
             # Notify that purchase process is starting
             await notification_manager.notify_purchase_started(event, event.quantity)
@@ -381,14 +452,7 @@ class BookMyShowBot:
                 log.error(f"Verification error: {e}")
                 await notification_manager.notify_purchase_failed(event, f"Verification error: {str(e)}")
                 return False
-            
-        except Exception as e:
-            log.error(f"Error during ticket purchase: {e}")
-            await notification_manager.notify_purchase_failed(event, f"Unexpected error: {str(e)}")
-            return False
-        
-        finally:
-            self.purchase_in_progress = False
+    
     
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
