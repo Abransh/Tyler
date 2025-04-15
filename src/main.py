@@ -489,6 +489,170 @@ class BookMyShowBot:
         """
         payment_processor.add_gift_card(card_number, pin, balance)
         log.info(f"Added gift card ending in ...{card_number[-4:]}")
+    
+    def add_proxy(self, host: str, port: int, username: Optional[str] = None, 
+                 password: Optional[str] = None, protocol: str = "http") -> None:
+        """
+        Add a proxy to the proxy manager.
+        
+        Args:
+            host: Proxy host
+            port: Proxy port
+            username: Username for authentication (optional)
+            password: Password for authentication (optional)
+            protocol: Protocol (http, https, socks5)
+        """
+        proxy_manager.add_proxy(host, port, username, password, protocol)
+        log.info(f"Added proxy: {host}:{port}")
+    
+    def remove_proxy(self, host: str, port: int) -> bool:
+        """
+        Remove a proxy from the manager.
+        
+        Args:
+            host: Proxy host
+            port: Proxy port
+            
+        Returns:
+            True if removed, False if not found
+        """
+        result = proxy_manager.remove_proxy(host, port)
+        if result:
+            log.info(f"Removed proxy: {host}:{port}")
+        else:
+            log.warning(f"Proxy not found: {host}:{port}")
+        return result
+    
+    async def test_proxies(self) -> Dict[str, int]:
+        """
+        Test all proxies for connectivity.
+        
+        Returns:
+            Dictionary with counts of working and failing proxies
+        """
+        log.info("Testing proxies...")
+        results = await proxy_manager.test_proxies()
+        log.info(f"Proxy test results: {results['working']} working, {results['failing']} failing")
+        return results
+    
+    def get_all_proxies(self) -> List[Dict[str, Any]]:
+        """
+        Get information about all proxies.
+        
+        Returns:
+            List of dictionaries with proxy information
+        """
+        return proxy_manager.get_all_proxies()
+        
+    async def test_captcha_solving(self, url: Optional[str] = None) -> bool:
+        """
+        Test CAPTCHA solving capabilities.
+        
+        Args:
+            url: URL with a CAPTCHA to test, or None to use a known CAPTCHA page
+            
+        Returns:
+            True if CAPTCHA was solved, False otherwise
+        """
+        if not url:
+            # Use a test page with a known CAPTCHA
+            url = "https://democaptcha.com/demo-form-eng/image.html"
+        
+        log.info(f"Testing CAPTCHA solver on {url}")
+        
+        # Create a new context and page
+        context = await browser_manager.create_context()
+        page = await browser_manager.new_page(context)
+        
+        try:
+            # Navigate to the test page
+            await browser_manager.navigate(page, url)
+            
+            # Check for CAPTCHA
+            has_captcha, captcha_element = await captcha_solver.detect_captcha(page)
+            
+            if not has_captcha:
+                log.warning("No CAPTCHA detected on the test page")
+                await context.close()
+                return False
+            
+            log.info("CAPTCHA detected, attempting to solve")
+            
+            # Try to solve
+            solved = await captcha_solver.solve_captcha(page)
+            
+            if solved:
+                log.info("CAPTCHA solved successfully!")
+            else:
+                log.error("Failed to solve CAPTCHA")
+            
+            return solved
+            
+        except Exception as e:
+            log.error(f"Error testing CAPTCHA solving: {str(e)}")
+            return False
+            
+        finally:
+            await context.close()
+    
+    def schedule_sale_date_monitoring(self, event_id: str, sale_date_str: str) -> List[str]:
+        """
+        Schedule monitoring for an event with known on-sale date.
+        
+        Args:
+            event_id: Event ID to monitor
+            sale_date_str: Expected on-sale date/time in ISO format (YYYY-MM-DDTHH:MM:SS)
+            
+        Returns:
+            List of scheduled job IDs
+        """
+        # Parse sale date
+        try:
+            sale_date = datetime.fromisoformat(sale_date_str)
+        except ValueError:
+            log.error(f"Invalid date format: {sale_date_str}. Expected ISO format (YYYY-MM-DDTHH:MM:SS)")
+            return []
+        
+        # Initialize scheduler
+        scheduler_manager.initialize()
+        
+        # Schedule monitoring
+        job_ids = scheduler_manager.schedule_sale_date_monitoring(event_id, sale_date)
+        
+        # Get event details for logging
+        event = event_tracker.get_event(event_id)
+        event_name = event.name if event else event_id
+        
+        log.info(f"Scheduled monitoring for '{event_name}' with sale date {sale_date}")
+        log.info(f"Created {len(job_ids)} monitoring schedules")
+        
+        return job_ids
+    
+    def get_scheduled_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Get information about all scheduled jobs.
+        
+        Returns:
+            List of dictionaries with job information
+        """
+        return scheduler_manager.get_jobs()
+    
+    def remove_scheduled_job(self, job_id: str) -> bool:
+        """
+        Remove a scheduled job.
+        
+        Args:
+            job_id: ID of the job to remove
+            
+        Returns:
+            True if removed, False if not found
+        """
+        result = scheduler_manager.remove_job(job_id)
+        if result:
+            log.info(f"Removed scheduled job: {job_id}")
+        else:
+            log.warning(f"Scheduled job not found: {job_id}")
+        return result
 
 
 async def main() -> None:
@@ -510,6 +674,8 @@ async def main() -> None:
     monitor_parser = subparsers.add_parser("monitor", help="Monitor events for ticket availability")
     monitor_parser.add_argument("--event", dest="event_ids", action="append", help="Event ID to monitor (can be used multiple times)")
     monitor_parser.add_argument("--once", action="store_true", help="Run monitoring only once instead of continuously")
+    monitor_parser.add_argument("--interval", type=int, default=60, help="Monitoring interval in seconds")
+    monitor_parser.add_argument("--use-scheduler", action="store_true", help="Use scheduler for monitoring")
     
     # List command
     list_parser = subparsers.add_parser("list", help="List tracked events")
@@ -534,6 +700,50 @@ async def main() -> None:
     # Purchase command
     purchase_parser = subparsers.add_parser("purchase", help="Purchase tickets for an event")
     purchase_parser.add_argument("event_id", help="Event ID to purchase")
+    purchase_parser.add_argument("--quantity", type=int, help="Number of tickets to purchase")
+    
+    # Proxy commands
+    proxy_parser = subparsers.add_parser("proxy", help="Manage proxies")
+    proxy_subparsers = proxy_parser.add_subparsers(dest="proxy_command", help="Proxy command")
+    
+    # Add proxy
+    add_proxy_parser = proxy_subparsers.add_parser("add", help="Add a proxy")
+    add_proxy_parser.add_argument("host", help="Proxy host")
+    add_proxy_parser.add_argument("port", type=int, help="Proxy port")
+    add_proxy_parser.add_argument("--username", help="Username for authentication")
+    add_proxy_parser.add_argument("--password", help="Password for authentication")
+    add_proxy_parser.add_argument("--protocol", default="http", choices=["http", "https", "socks5"], help="Proxy protocol")
+    
+    # Remove proxy
+    remove_proxy_parser = proxy_subparsers.add_parser("remove", help="Remove a proxy")
+    remove_proxy_parser.add_argument("host", help="Proxy host")
+    remove_proxy_parser.add_argument("port", type=int, help="Proxy port")
+    
+    # List proxies
+    list_proxies_parser = proxy_subparsers.add_parser("list", help="List available proxies")
+    
+    # Test proxies
+    test_proxies_parser = proxy_subparsers.add_parser("test", help="Test proxies")
+    
+    # Scheduler commands
+    scheduler_parser = subparsers.add_parser("scheduler", help="Manage task scheduling")
+    scheduler_subparsers = scheduler_parser.add_subparsers(dest="scheduler_command", help="Scheduler command")
+    
+    # Schedule sale date monitoring
+    schedule_sale_parser = scheduler_subparsers.add_parser("sale", help="Schedule monitoring for an event with known on-sale date")
+    schedule_sale_parser.add_argument("event_id", help="Event ID to monitor")
+    schedule_sale_parser.add_argument("sale_date", help="Expected on-sale date/time (YYYY-MM-DDTHH:MM:SS)")
+    
+    # List scheduled jobs
+    list_jobs_parser = scheduler_subparsers.add_parser("list", help="List scheduled jobs")
+    
+    # Remove scheduled job
+    remove_job_parser = scheduler_subparsers.add_parser("remove", help="Remove a scheduled job")
+    remove_job_parser.add_argument("job_id", help="Job ID to remove")
+    
+    # CAPTCHA testing command
+    captcha_parser = subparsers.add_parser("captcha", help="Test CAPTCHA solving")
+    captcha_parser.add_argument("--url", help="URL with a CAPTCHA to test")
     
     # Parse arguments
     args = parser.parse_args()
@@ -558,7 +768,9 @@ async def main() -> None:
             if args.once:
                 newly_available = await bot.start_monitoring(
                     event_ids=args.event_ids,
-                    single_run=True
+                    single_run=True,
+                    interval=args.interval,
+                    use_scheduler=args.use_scheduler
                 )
                 if newly_available:
                     print(f"Found {len(newly_available)} newly available events!")
@@ -566,7 +778,11 @@ async def main() -> None:
                     print("No new available events found")
             else:
                 # Continuous monitoring until interrupted
-                await bot.start_monitoring(event_ids=args.event_ids)
+                await bot.start_monitoring(
+                    event_ids=args.event_ids, 
+                    interval=args.interval,
+                    use_scheduler=args.use_scheduler
+                )
             
         elif args.command == "list":
             events = event_tracker.get_all_events()
@@ -618,11 +834,81 @@ async def main() -> None:
                 print(f"Event {args.event_id} not found")
             else:
                 print(f"Attempting to purchase tickets for: {event.name}")
-                success = await bot.purchase_tickets(event)
+                success = await bot.purchase_tickets(event, args.quantity)
                 if success:
                     print("Purchase successful! 🎉")
                 else:
                     print("Purchase failed. Check logs for details.")
+        
+        elif args.command == "proxy":
+            if args.proxy_command == "add":
+                bot.add_proxy(args.host, args.port, args.username, args.password, args.protocol)
+                print(f"Added proxy: {args.host}:{args.port}")
+                
+            elif args.proxy_command == "remove":
+                success = bot.remove_proxy(args.host, args.port)
+                if success:
+                    print(f"Removed proxy: {args.host}:{args.port}")
+                else:
+                    print(f"Proxy not found: {args.host}:{args.port}")
+                    
+            elif args.proxy_command == "list":
+                proxies = bot.get_all_proxies()
+                if not proxies:
+                    print("No proxies available")
+                else:
+                    print(f"Available proxies ({len(proxies)}):")
+                    for i, proxy in enumerate(proxies, 1):
+                        status = "🟢 Active" if not proxy["is_banned"] else "🔴 Banned"
+                        print(f"{i}. {proxy['host']}:{proxy['port']} ({proxy['protocol']}) - {status}")
+                        print(f"   Success: {proxy['success_count']}, Failures: {proxy['failure_count']}")
+                        print(f"   Last used: {proxy['last_used']}")
+                        
+            elif args.proxy_command == "test":
+                print("Testing proxies...")
+                results = await bot.test_proxies()
+                print(f"Results: {results['working']} working, {results['failing']} failing")
+                
+            else:
+                proxy_parser.print_help()
+        
+        elif args.command == "scheduler":
+            if args.scheduler_command == "sale":
+                job_ids = bot.schedule_sale_date_monitoring(args.event_id, args.sale_date)
+                if job_ids:
+                    print(f"Scheduled monitoring for event {args.event_id} with sale date {args.sale_date}")
+                    print(f"Created {len(job_ids)} monitoring schedules")
+                else:
+                    print("Failed to schedule monitoring")
+                    
+            elif args.scheduler_command == "list":
+                jobs = bot.get_scheduled_jobs()
+                if not jobs:
+                    print("No scheduled jobs")
+                else:
+                    print(f"Scheduled jobs ({len(jobs)}):")
+                    for i, job in enumerate(jobs, 1):
+                        print(f"{i}. {job['name']} (ID: {job['id']})")
+                        print(f"   Next run: {job['next_run']}")
+                        print(f"   Trigger: {job['trigger']}")
+                        
+            elif args.scheduler_command == "remove":
+                success = bot.remove_scheduled_job(args.job_id)
+                if success:
+                    print(f"Removed scheduled job: {args.job_id}")
+                else:
+                    print(f"Scheduled job not found: {args.job_id}")
+                    
+            else:
+                scheduler_parser.print_help()
+        
+        elif args.command == "captcha":
+            print("Testing CAPTCHA solving capabilities...")
+            success = await bot.test_captcha_solving(args.url)
+            if success:
+                print("CAPTCHA solved successfully! 🎉")
+            else:
+                print("Failed to solve CAPTCHA")
                 
         else:
             # If no command is provided, show help
